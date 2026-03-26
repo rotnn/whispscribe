@@ -44,6 +44,28 @@ Releases will be available on the [GitHub releases page](../../releases).
 
 ---
 
+## Installation
+
+### macOS
+
+After downloading the .dmg file, drag WhispScribe to your Applications folder.
+
+Because WhispScribe is not yet notarized with Apple, macOS may block it from opening. To fix this, run the following command in Terminal after installing:
+
+```bash
+xattr -cr /Applications/WhispScribe.app
+```
+
+Then open the app normally. You only need to do this once.
+
+Alternatively, right click the app and select Open, then click Open in the dialog that appears.
+
+### Windows
+
+Run the installer and follow the setup wizard. Windows may show a SmartScreen warning for unsigned apps. Click More info then Run anyway to proceed.
+
+---
+
 ## Supported Models
 
 | Model    | Size   | RAM Required | Speed        |

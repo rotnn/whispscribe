@@ -27,7 +27,15 @@ sysinfo     = "0.32"
 reqwest     = { version = "0.12", default-features = false, features = ["stream", "native-tls"] }
 tokio       = { version = "1", features = ["full"] }
 futures-util = "0.3"
-whisper-rs  = { version = "0.13", features = ["metal"] }
 symphonia   = { version = "0.5", features = ["all"] }
 rubato      = "0.15"
+
+# Metal GPU acceleration is Apple-only — the "metal" feature passes
+# GGML_METAL=ON to cmake which requires Foundation.framework, unavailable
+# on Windows and Linux.
+[target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs  = { version = "0.13", features = ["metal"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+whisper-rs  = { version = "0.13" }
 
