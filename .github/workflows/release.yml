@@ -30,7 +30,7 @@ jobs:
           chmod +x src-tauri/resources/ffmpeg-macos-aarch64
 
       - name: Build
-        run: npm run tauri build
+        run: npm run tauri build -- --config src-tauri/tauri.macos.conf.json
 
       - uses: actions/upload-artifact@v4
         with:
@@ -40,6 +40,8 @@ jobs:
   # ── Windows (x64) ────────────────────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
+    env:
+      WHISPER_NO_METAL: "1"
 
     steps:
       - uses: actions/checkout@v4
@@ -66,7 +68,7 @@ jobs:
             -Destination "src-tauri\resources\ffmpeg-windows-x86_64.exe"
 
       - name: Build
-        run: npm run tauri build
+        run: npm run tauri build -- --config src-tauri/tauri.windows.conf.json
 
       - uses: actions/upload-artifact@v4
         with:

@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "resources/ffmpeg-windows-x86_64.exe": "ffmpeg-windows-x86_64.exe"
+    }
+  }
+}

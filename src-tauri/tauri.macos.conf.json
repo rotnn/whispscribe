@@ -1,0 +1,7 @@
+{
+  "bundle": {
+    "resources": {
+      "resources/ffmpeg-macos-aarch64": "ffmpeg-macos-aarch64"
+    }
+  }
+}

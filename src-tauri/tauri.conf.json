@@ -30,10 +30,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "resources": {
-      "resources/ffmpeg-macos-aarch64": "ffmpeg-macos-aarch64",
-      "resources/ffmpeg-windows-x86_64.exe": "ffmpeg-windows-x86_64.exe"
-    }
+    ]
   }
 }
