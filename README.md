@@ -16,9 +16,7 @@
   <img src="https://img.shields.io/badge/powered%20by-Whisper-orange">
 </p>
 
----
-
-## Screenshots
+<hr>
 
 <p align="center">
   <img src="screenshots/onboarding.png" width="700" alt="WhispScribe onboarding">
@@ -30,13 +28,13 @@
 
 ## Features
 
-* ✅ Drag and drop mp4, mov, mp3, wav, m4a, and webm files
-* ✅ Fully local transcription with nothing leaving your machine
-* ✅ Automatic hardware detection that recommends the best model for your available RAM
-* ✅ GPU accelerated on Apple Silicon via Metal
-* ✅ Export to .txt, .srt, .vtt, .json, .csv, and .md
-* ✅ 99 language support
-* ✅ Works on macOS and Windows
+* Drag and drop mp4, mov, mp3, wav, m4a, and webm files
+* Fully local transcription with nothing leaving your machine
+* Automatic hardware detection that recommends the best model for your available RAM
+* GPU accelerated on Apple Silicon via Metal
+* Export to .txt, .srt, .vtt, .json, .csv, and .md
+* 99 language support
+* Works on macOS and Windows
 
 ---
 
@@ -64,7 +62,7 @@ Models are downloaded on first launch and cached locally. They are never bundled
 **Requirements:** Node.js 18+, Rust, Cargo
 
 ```bash
-git clone https://github.com/yourusername/whispscribe
+git clone https://github.com/rotnn/whispscribe
 cd whispscribe
 npm install
 npm run tauri dev
