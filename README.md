@@ -4,13 +4,13 @@ A free, open source desktop app for local audio and video transcription. Powered
 
 ## Features
 
-- Drag and drop audio/video files — mp4, mov, mp3, wav, m4a, webm
-- Local transcription — nothing leaves your machine
-- Automatic hardware detection — recommends the best Whisper model for your RAM
-- GPU accelerated on Apple Silicon via Metal
-- Export to .txt, .srt, .vtt, .json, .csv, .md
-- 99 language support
-- Works on macOS and Windows
+* Drag and drop audio and video files in mp4, mov, mp3, wav, m4a, and webm formats
+* Local transcription with no data sent anywhere
+* Automatic hardware detection that recommends the best Whisper model for your available RAM
+* GPU accelerated on Apple Silicon via Metal
+* Export to .txt, .srt, .vtt, .json, .csv, and .md
+* 99 language support
+* Works on macOS and Windows
 
 ## Download
 
@@ -38,7 +38,7 @@ npm install
 npm run tauri dev
 ```
 
-> **Note:** ffmpeg binaries are not included in the repository due to their size. Download them separately before building — see [src-tauri/resources/README.md](src-tauri/resources/README.md) for instructions.
+> **Note:** ffmpeg binaries are not included in the repository due to their size. Download them separately before building and see [src-tauri/resources/README.md](src-tauri/resources/README.md) for instructions.
 
 ## License
 
