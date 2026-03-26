@@ -1,20 +1,50 @@
-# WhispScribe
+<p align="center">
+  <img src="src-tauri/icons/icon.png" width="120" alt="WhispScribe">
+</p>
 
-A free, open source desktop app for local audio and video transcription. Powered by OpenAI Whisper. No cloud, no subscription, no data leaving your machine.
+<p align="center">
+  <strong>WhispScribe</strong>
+  <br>
+  Free, open source local audio and video transcription powered by OpenAI Whisper.
+  <br>No cloud. No subscription. Nothing leaves your machine.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/license-MIT-blue">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey">
+  <img src="https://img.shields.io/badge/built%20with-Tauri-blue">
+  <img src="https://img.shields.io/badge/powered%20by-Whisper-orange">
+</p>
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="screenshots/onboarding.png" width="700" alt="WhispScribe onboarding">
+  <br><br>
+  <img src="screenshots/home.png" width="700" alt="WhispScribe main screen">
+</p>
+
+---
 
 ## Features
 
-* Drag and drop audio and video files in mp4, mov, mp3, wav, m4a, and webm formats
-* Local transcription with no data sent anywhere
-* Automatic hardware detection that recommends the best Whisper model for your available RAM
-* GPU accelerated on Apple Silicon via Metal
-* Export to .txt, .srt, .vtt, .json, .csv, and .md
-* 99 language support
-* Works on macOS and Windows
+* ✅ Drag and drop mp4, mov, mp3, wav, m4a, and webm files
+* ✅ Fully local transcription with nothing leaving your machine
+* ✅ Automatic hardware detection that recommends the best model for your available RAM
+* ✅ GPU accelerated on Apple Silicon via Metal
+* ✅ Export to .txt, .srt, .vtt, .json, .csv, and .md
+* ✅ 99 language support
+* ✅ Works on macOS and Windows
+
+---
 
 ## Download
 
 Releases will be available on the [GitHub releases page](../../releases).
+
+---
 
 ## Supported Models
 
@@ -26,6 +56,8 @@ Releases will be available on the [GitHub releases page](../../releases).
 | Large v3 | 3 GB   | 5 GB         | Best quality |
 
 Models are downloaded on first launch and cached locally. They are never bundled in the app itself.
+
+---
 
 ## Building from Source
 
@@ -39,6 +71,8 @@ npm run tauri dev
 ```
 
 > **Note:** ffmpeg binaries are not included in the repository due to their size. Download them separately before building and see [src-tauri/resources/README.md](src-tauri/resources/README.md) for instructions.
+
+---
 
 ## License
 
