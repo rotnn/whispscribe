@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Dark background -->
+  <rect width="1024" height="1024" rx="224" fill="#0d0d0f"/>
+  <!-- Subtle blue radial tint (matches Onboarding logo) -->
+  <radialGradient id="tint" cx="30%" cy="15%" r="60%">
+    <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.18"/>
+    <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="1024" height="1024" rx="224" fill="url(#tint)"/>
+  <!-- Blue waveform — same 6-bar shape as the Onboarding logo, scaled to icon size -->
+  <!-- Original viewBox 26×26, bars at x=3,7,11,15,19,23 → scaled ×28.5 + centred   -->
+  <line x1="234" y1="512" x2="234" y2="512" stroke="#3b82f6" stroke-width="64" stroke-linecap="round"/>
+  <line x1="348" y1="298" x2="348" y2="726" stroke="#3b82f6" stroke-width="64" stroke-linecap="round"/>
+  <line x1="462" y1="170" x2="462" y2="854" stroke="#3b82f6" stroke-width="64" stroke-linecap="round"/>
+  <line x1="576" y1="298" x2="576" y2="726" stroke="#3b82f6" stroke-width="64" stroke-linecap="round"/>
+  <line x1="690" y1="384" x2="690" y2="640" stroke="#3b82f6" stroke-width="64" stroke-linecap="round"/>
+  <line x1="790" y1="512" x2="790" y2="512" stroke="#3b82f6" stroke-width="64" stroke-linecap="round"/>
+</svg>

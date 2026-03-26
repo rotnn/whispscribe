@@ -1,0 +1,5 @@
+# Build-time environment variables read by whisper-rs-sys's cmake build script.
+# WHISPER_METAL_EMBED_LIBRARY embeds the compiled Metal shaders directly into
+# the binary so no external .metallib file is needed at runtime.
+[env]
+WHISPER_METAL_EMBED_LIBRARY = "1"

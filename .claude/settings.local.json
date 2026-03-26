@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(grep -rn \"#[0-9a-fA-F]\\\\{3,6\\\\}\\\\|rgba\\\\?\\\\|''#\\\\|\"\"#\" /Users/martin/Documents/whisper-drop/src --include=\"*.tsx\" --include=\"*.ts\" --include=\"*.css\")",
+      "Bash(npx --yes @resvg/resvg-js-cli src-tauri/icons/icon.svg -o src-tauri/icons/icon.png --width 1024 --height 1024)",
+      "Bash(npx @resvg/resvg-js-cli --help)",
+      "Bash(npx @resvg/resvg-js-cli src-tauri/icons/icon.svg src-tauri/icons/icon.png --width 1024 --height 1024)",
+      "Bash(npx @resvg/resvg-js-cli --fit-width 1024 src-tauri/icons/icon.svg src-tauri/icons/icon.png)",
+      "Bash(sips -z 256 256 src-tauri/icons/icon.png --out src-tauri/icons/128x128@2x.png)",
+      "Bash(sips -z 128 128 src-tauri/icons/icon.png --out src-tauri/icons/128x128.png)",
+      "Bash(sips -z 32 32 src-tauri/icons/icon.png --out src-tauri/icons/32x32.png)",
+      "Bash(mkdir -p /tmp/whispscribe.iconset)",
+      "Bash(sips -z 16 16 src-tauri/icons/icon.png --out /tmp/whispscribe.iconset/icon_16x16.png)",
+      "Bash(sips -z 32 32 src-tauri/icons/icon.png --out /tmp/whispscribe.iconset/icon_16x16@2x.png)",
+      "Bash(sips -z 32 32 src-tauri/icons/icon.png --out /tmp/whispscribe.iconset/icon_32x32.png)",
+      "Bash(sips -z 64 64 src-tauri/icons/icon.png --out /tmp/whispscribe.iconset/icon_32x32@2x.png)",
+      "Bash(cargo check:*)",
+      "Bash(brew install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(curl -L \"https://evermeet.cx/ffmpeg/getrelease/ffmpeg/zip\" -o /tmp/ffmpeg-mac.zip --progress-bar)",
+      "Bash(curl -L \"https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip\" -o /tmp/ffmpeg-win.zip --progress-bar)",
+      "Bash(unzip -p /tmp/ffmpeg-mac.zip ffmpeg)",
+      "Bash(chmod +x /Users/martin/Documents/whisper-drop/src-tauri/resources/ffmpeg-macos-aarch64)",
+      "Bash(unzip -p /tmp/ffmpeg-win.zip \"ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe\")",
+      "Bash(node -e \"require\\(''sharp''\\)\")",
+      "Bash(node -e \"require\\(''''sharp''''\\)\")",
+      "Bash(npm list:*)",
+      "Bash(python3 -c \"from PIL import Image; print\\(''PIL available''\\)\")",
+      "Bash(python3 -c \"import cairosvg; print\\(''cairosvg available''\\)\")",
+      "Bash(node scripts/generate-icons.mjs)",
+      "Bash(node -e \"const c=JSON.parse\\(require\\(''fs''\\).readFileSync\\(''src-tauri/tauri.conf.json'',''utf8''\\)\\); console.log\\(JSON.stringify\\(c.bundle.icon,null,2\\)\\)\")"
+    ]
+  }
+}
