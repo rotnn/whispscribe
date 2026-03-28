@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 type ExportResult = { paths: string[] } | { error: string };
 
@@ -9,12 +9,37 @@ interface Props {
   isTranscribing: boolean;
   exportResult?: ExportResult | null;
   onExport?: () => void;
+  onCancel?: () => void;
 }
 
 export default function TranscriptOutput({
-  transcript, progress, status, isTranscribing, exportResult, onExport,
+  transcript, progress, status, isTranscribing, exportResult, onExport, onCancel,
 }: Props) {
   const [copied, setCopied] = useState(false);
+  const [elapsedSecs, setElapsedSecs] = useState(0);
+  const startTimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isTranscribing) {
+      startTimeRef.current = null;
+      setElapsedSecs(0);
+      return;
+    }
+    startTimeRef.current = Date.now();
+    setElapsedSecs(0);
+    const interval = setInterval(() => {
+      if (startTimeRef.current !== null) {
+        setElapsedSecs(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isTranscribing]);
+
+  function formatElapsed(secs: number): string {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  }
 
   async function handleCopy() {
     if (!transcript) return;
@@ -104,11 +129,38 @@ export default function TranscriptOutput({
       {/* Progress bar */}
       {showProgress && (
         <div style={{ flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-            <span style={{ fontSize: '0.786rem', color: 'var(--color-secondary)' }}>{status}</span>
-            <span style={{ fontSize: '0.786rem', color: 'var(--color-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-              {Math.round(progress)}%
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+            <span style={{ fontSize: '0.786rem', color: 'var(--color-secondary)' }}>
+              {status}
+              {isTranscribing && elapsedSecs > 0 && (
+                <span style={{ marginLeft: '0.4rem', fontVariantNumeric: 'tabular-nums' }}>
+                  {formatElapsed(elapsedSecs)}
+                </span>
+              )}
             </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              {isTranscribing && onCancel && (
+                <button
+                  onClick={onCancel}
+                  style={{
+                    background: 'none',
+                    border: '1.5px solid var(--color-border)',
+                    borderRadius: 6,
+                    padding: '0.1rem 0.55rem',
+                    fontSize: '0.714rem',
+                    color: 'var(--color-secondary)',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+              <span style={{ fontSize: '0.786rem', color: 'var(--color-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+                {Math.round(progress)}%
+              </span>
+            </div>
           </div>
           <div style={{ height: 4, borderRadius: 2, background: 'var(--color-border)', overflow: 'hidden' }}>
             <div style={{
@@ -116,6 +168,15 @@ export default function TranscriptOutput({
               background: 'var(--color-accent)', transition: 'width 300ms ease',
             }} />
           </div>
+          {isTranscribing && elapsedSecs >= 30 && (
+            <p style={{
+              margin: '0.35rem 0 0',
+              fontSize: '0.714rem',
+              color: 'var(--color-tertiary)',
+            }}>
+              This may take a few minutes for longer files.
+            </p>
+          )}
         </div>
       )}
 

@@ -1,5 +1,7 @@
 use serde::Serialize;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, Manager};
 use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
@@ -16,6 +18,25 @@ fn emit(app: &AppHandle, percent: f64, status: &str) {
         "transcribe_progress",
         TranscribeProgress { percent, status: status.to_string() },
     );
+}
+
+// ── Cancellation state ────────────────────────────────────────────────────────
+
+/// Managed state holding the abort handle for the current transcription task.
+/// `None` when no transcription is running.
+pub struct TranscribeAbort(pub Mutex<Option<tokio::task::AbortHandle>>);
+
+/// Cancel the in-progress transcription. The background thread cannot be
+/// forcibly stopped, but the JoinHandle is cancelled so the async command
+/// returns immediately with a "cancelled" error that the frontend can detect.
+#[tauri::command]
+pub async fn cancel_transcription(
+    abort: tauri::State<'_, TranscribeAbort>,
+) -> Result<(), String> {
+    if let Some(handle) = abort.0.lock().unwrap().take() {
+        handle.abort();
+    }
+    Ok(())
 }
 
 // ── Model path ────────────────────────────────────────────────────────────────
@@ -391,6 +412,7 @@ fn fmt_ts(cs: i64) -> String {
 #[tauri::command]
 pub async fn transcribe(
     app: AppHandle,
+    abort: tauri::State<'_, TranscribeAbort>,
     file_path: String,
     model: String,
     language: String,
@@ -411,149 +433,261 @@ pub async fn transcribe(
     emit(&app, 5.0, "Loading model…");
 
     // All whisper work is CPU-bound and blocking — run on a thread-pool thread.
-    let result = tokio::task::spawn_blocking({
+    //
+    // NOTE: set_progress_callback_safe is intentionally NOT called anywhere in
+    // this closure. On Apple Silicon with whisper-rs 0.13 the callback
+    // trampoline tries to re-lock a mutex already held by the whisper.cpp
+    // thread, causing a deadlock. We emit coarse milestones instead.
+    let handle = tokio::task::spawn_blocking({
         let app = app.clone();
 
         move || -> Result<String, String> {
-            // ── Pre-flight RAM check — must run BEFORE loading the model ─────
-            // WhisperContext::new_with_params() maps the model weights into RAM,
-            // so checking after that call always sees inflated usage and false-
-            // fails. Check here while memory is still at its pre-load baseline.
-            check_ram_for_model(&model)?;
+            // ── Outer catch_unwind — converts any panic to Err ───────────────
+            // state.full() can panic on OOM; other unexpected panics are also
+            // caught here so they surface as errors rather than silent hangs.
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<String, String> {
 
-            emit(&app, 10.0, "Loading model…");
+                // ── Pre-flight RAM check ─────────────────────────────────────
+                // Must run BEFORE loading the model — WhisperContext maps the
+                // weights into RAM, so checking after always sees inflated usage.
+                check_ram_for_model(&model)?;
 
-            // On macOS, attempt Metal GPU acceleration first.
-            // If the Metal runtime isn't available (e.g. CI, VM), fall back to CPU.
-            #[cfg(target_os = "macos")]
-            let ctx = {
-                let mut gpu_params = WhisperContextParameters::default();
-                gpu_params.use_gpu = true;
-                gpu_params.flash_attn = true;
-                match WhisperContext::new_with_params(&model_bin_str, gpu_params) {
-                    Ok(c) => c,
-                    Err(_) => WhisperContext::new_with_params(
-                        &model_bin_str,
-                        WhisperContextParameters::default(),
-                    )
-                    .map_err(|e| format!("Failed to load model: {e}"))?,
+                emit(&app, 10.0, "Loading model…");
+
+                // On macOS, attempt Metal GPU acceleration first.
+                // Falls back to CPU if the Metal runtime isn't available.
+                #[cfg(target_os = "macos")]
+                let ctx = {
+                    let mut gpu_params = WhisperContextParameters::default();
+                    gpu_params.use_gpu = true;
+                    gpu_params.flash_attn = true;
+                    match WhisperContext::new_with_params(&model_bin_str, gpu_params) {
+                        Ok(c) => c,
+                        Err(_) => WhisperContext::new_with_params(
+                            &model_bin_str,
+                            WhisperContextParameters::default(),
+                        )
+                        .map_err(|e| format!("Failed to load model: {e}"))?,
+                    }
+                };
+
+                #[cfg(not(target_os = "macos"))]
+                let ctx = WhisperContext::new_with_params(
+                    &model_bin_str,
+                    WhisperContextParameters::default(),
+                )
+                .map_err(|e| format!("Failed to load model: {e}"))?;
+
+                emit(&app, 20.0, "Decoding audio…");
+
+                let samples = decode_audio(&file_path, bundled_ffmpeg)?;
+
+                if samples.is_empty() {
+                    return Err("Audio is empty after decoding".into());
                 }
-            };
 
-            #[cfg(not(target_os = "macos"))]
-            let ctx = WhisperContext::new_with_params(
-                &model_bin_str,
-                WhisperContextParameters::default(),
-            )
-            .map_err(|e| format!("Failed to load model: {e}"))?;
+                emit(&app, 50.0, "Starting transcription…");
 
-            emit(&app, 22.0, "Decoding audio…");
+                let mut state = ctx.create_state().map_err(|e| e.to_string())?;
 
-            let samples = decode_audio(&file_path, bundled_ffmpeg)?;
+                // ── Memory-conservative params ────────────────────────────────
+                // Greedy (best_of=1) uses far less memory than beam search.
+                let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
 
-            if samples.is_empty() {
-                return Err("Audio is empty after decoding".into());
-            }
+                // Keep thread count modest — too many threads thrash the cache
+                // and each thread allocates its own KV-cache slice.
+                params.set_n_threads(4);
 
-            emit(&app, 40.0, "Transcribing…");
+                // Don't carry context between segments — biggest single memory
+                // saving; avoids a full KV-cache copy between chunks.
+                params.set_no_context(true);
 
-            let mut state = ctx.create_state().map_err(|e| e.to_string())?;
+                // ── Hallucination suppression ─────────────────────────────────
+                // temperature=0 → pure greedy decoding, no randomness. Any value
+                // above 0 lets the model sample randomly, which can send it into
+                // repetition loops on quiet/music sections.
+                params.set_temperature(0.0);
 
-            // ── Memory-conservative params ───────────────────────────────────
-            // Greedy (best_of=1) uses far less memory than beam search.
-            let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
+                // entropy_thold: discard a segment whose token entropy exceeds
+                // this threshold (indicates the model is guessing wildly).
+                params.set_entropy_thold(2.4);
 
-            // Keep thread count modest — too many threads thrash the cache and
-            // each thread allocates its own KV-cache slice.
-            params.set_n_threads(4);
+                // logprob_thold: discard a segment whose mean log-probability
+                // falls below this value (low-confidence output).
+                params.set_logprob_thold(-1.0);
 
-            // Don't carry context between segments — saves a full KV-cache copy
-            // between chunks and is the biggest single memory saving.
-            params.set_no_context(true);
+                // no_speech_thold: treat a segment as silence and skip it when
+                // the no-speech probability exceeds this value. Prevents the
+                // model from hallucinating transcriptions for silent sections.
+                params.set_no_speech_thold(0.6);
 
-            params.set_print_special(false);
-            params.set_print_progress(false);
-            params.set_print_realtime(false);
-            params.set_print_timestamps(false);
+                params.set_print_special(false);
+                params.set_print_progress(false);
+                params.set_print_realtime(false);
+                params.set_print_timestamps(false);
 
-            // Language — pass None for auto-detect, string for explicit
-            if language != "auto" {
-                params.set_language(Some(&language));
-            }
+                if language != "auto" {
+                    params.set_language(Some(&language));
+                }
+                if translate {
+                    params.set_translate(true);
+                }
+                if timestamps == "word" {
+                    params.set_token_timestamps(true);
+                }
 
-            if translate {
-                params.set_translate(true);
-            }
+                // ── Progress timer thread ─────────────────────────────────────
+                // set_progress_callback_safe is intentionally NOT used here —
+                // it causes a mutex deadlock on Apple Silicon (whisper-rs 0.13).
+                // Instead, a timer thread increments fake progress from 50 → 89%
+                // while state.full() runs, calibrated to the audio duration so
+                // short files move faster than long ones.
+                let audio_secs = samples.len() as f64 / 16_000.0;
+                let stop_timer = Arc::new(AtomicBool::new(false));
+                let stop_timer_clone = Arc::clone(&stop_timer);
+                let app_timer = app.clone();
+                let timer_thread = std::thread::spawn(move || {
+                    // Rough real-time factor estimate: 4x audio duration.
+                    // Clamped so short clips still animate and very long files
+                    // don't stall at 50% for minutes before moving.
+                    let estimated = (audio_secs * 4.0).max(15.0).min(300.0);
+                    let start = std::time::Instant::now();
+                    loop {
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                        if stop_timer_clone.load(Ordering::Relaxed) { break; }
+                        let t = (start.elapsed().as_secs_f64() / estimated).min(0.97);
+                        let pct = 50.0 + t * 39.0; // 50 % → approaches 89 %
+                        let _ = app_timer.emit(
+                            "transcribe_progress",
+                            TranscribeProgress { percent: pct, status: "Transcribing…".to_string() },
+                        );
+                    }
+                });
 
-            if timestamps == "word" {
-                params.set_token_timestamps(true);
-            }
+                // Run inference — panic (e.g. OOM) is caught by the outer
+                // catch_unwind; a non-panic error is propagated with `?`.
+                let full_result = state.full(params, &samples)
+                    .map_err(|e| format!("Transcription error: {e}"));
 
-            // NOTE: set_progress_callback_safe is intentionally omitted.
-            // On Apple Silicon with whisper-rs 0.13 the callback trampoline
-            // tries to re-lock a mutex already held by the whisper.cpp thread,
-            // causing "failed to lock mutex: Invalid argument (os error 22)".
-            // We emit coarse progress milestones around state.full() instead.
+                // Always stop the timer before propagating errors
+                stop_timer.store(true, Ordering::Relaxed);
+                let _ = timer_thread.join();
 
-            // ── Run inference — catch panics so OOM doesn't kill the process ─
-            let full_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                state.full(params, &samples)
-            }));
+                full_result?;
 
-            match full_result {
-                Ok(Ok(_)) => {}
-                Ok(Err(e)) => return Err(format!("Transcription error: {e}")),
-                Err(panic_val) => {
-                    let detail = if let Some(s) = panic_val.downcast_ref::<String>() {
-                        s.clone()
-                    } else if let Some(s) = panic_val.downcast_ref::<&str>() {
-                        s.to_string()
+                emit(&app, 95.0, "Formatting output…");
+
+                let n = state.full_n_segments().map_err(|e| e.to_string())?;
+
+                // Audio duration in centiseconds — used to drop segments whose
+                // timestamp exceeds the actual audio (hallucinations past EOF).
+                let audio_duration_cs = (samples.len() as i64) * 100 / 16_000;
+
+                // ── Collect segments ──────────────────────────────────────────
+                struct Seg { text: String, t0: i64 }
+                let mut segments: Vec<Seg> = Vec::with_capacity(n as usize);
+
+                for i in 0..n {
+                    let t0 = state.full_get_segment_t0(i).map_err(|e| e.to_string())?;
+
+                    // Drop any segment that starts beyond the real audio end —
+                    // these are always hallucinated content.
+                    if t0 > audio_duration_cs {
+                        break;
+                    }
+
+                    let text = state
+                        .full_get_segment_text(i)
+                        .map_err(|e| e.to_string())?
+                        .trim()
+                        .to_string();
+
+                    if !text.is_empty() {
+                        segments.push(Seg { text, t0 });
+                    }
+                }
+
+                // ── Post-process: drop repetition loops ───────────────────────
+                // If the same text appears 3+ times consecutively the model is
+                // looping. Truncate at the start of the third repetition so the
+                // first two occurrences (which may be legitimate emphasis) survive.
+                let mut run_text = String::new();
+                let mut run_count: usize = 0;
+                let mut cutoff = segments.len(); // default: keep everything
+
+                for (idx, seg) in segments.iter().enumerate() {
+                    if seg.text == run_text {
+                        run_count += 1;
+                        if run_count >= 3 {
+                            cutoff = idx - (run_count - 1); // start of this run
+                            break;
+                        }
                     } else {
-                        "unknown panic payload".into()
-                    };
-                    return Err(format!(
-                        "Whisper crashed during inference (likely out of memory): {detail}\n\
-                         Try switching to the Small or Medium model."
-                    ));
-                }
-            }
-
-            emit(&app, 92.0, "Formatting output…");
-
-            let n = state.full_n_segments().map_err(|e| e.to_string())?;
-            let mut output = String::new();
-
-            for i in 0..n {
-                let text = state
-                    .full_get_segment_text(i)
-                    .map_err(|e| e.to_string())?
-                    .trim()
-                    .to_string();
-
-                if text.is_empty() {
-                    continue;
-                }
-
-                match timestamps.as_str() {
-                    "none" => {
-                        output.push_str(&text);
-                        output.push('\n');
-                    }
-                    _ => {
-                        let t0 = state
-                            .full_get_segment_t0(i)
-                            .map_err(|e| e.to_string())?;
-                        output.push_str(&format!("[{}] {}\n", fmt_ts(t0), text));
+                        run_text = seg.text.clone();
+                        run_count = 1;
                     }
                 }
-            }
 
-            Ok(output)
+                // ── Render output ─────────────────────────────────────────────
+                let mut output = String::new();
+                for seg in &segments[..cutoff] {
+                    match timestamps.as_str() {
+                        "none" => {
+                            output.push_str(&seg.text);
+                            output.push('\n');
+                        }
+                        _ => {
+                            output.push_str(&format!("[{}] {}\n", fmt_ts(seg.t0), seg.text));
+                        }
+                    }
+                }
+
+                // Always emit 100 % Done after state.full() returns — even if
+                // there are zero segments (silent audio, music, etc.).
+                emit(&app, 100.0, "Done");
+                Ok(output)
+
+            }))
+            .unwrap_or_else(|panic_val| {
+                let detail = if let Some(s) = panic_val.downcast_ref::<String>() {
+                    s.clone()
+                } else if let Some(s) = panic_val.downcast_ref::<&str>() {
+                    s.to_string()
+                } else {
+                    "unknown panic".into()
+                };
+                Err(format!(
+                    "Whisper crashed during inference (likely out of memory): {detail}\n\
+                     Try switching to the Small or Medium model."
+                ))
+            })
         }
-    })
-    .await
-    .map_err(|e| format!("Thread join error: {e}"))??;
+    });
 
-    emit(&app, 100.0, "Done");
+    // Store the abort handle so cancel_transcription can cancel this task.
+    *abort.0.lock().unwrap() = Some(handle.abort_handle());
+
+    // ── 10-minute timeout ─────────────────────────────────────────────────────
+    // If state.full() never returns (e.g. Metal driver deadlock, infinite loop)
+    // this unblocks the async task and surfaces an error to the frontend.
+    // The background thread is abandoned — it will be cleaned up when the
+    // process exits or when the OS reclaims the thread.
+    let result = tokio::time::timeout(std::time::Duration::from_secs(600), handle)
+        .await
+        .map_err(|_| {
+            "Transcription timed out after 10 minutes. \
+             Try a smaller model or a shorter audio file.".to_string()
+        })?
+        .map_err(|e| {
+            if e.is_cancelled() {
+                "Transcription cancelled.".to_string()
+            } else {
+                format!("Thread join error: {e}")
+            }
+        })??;
+
+    // Clear the abort handle — transcription is complete.
+    *abort.0.lock().unwrap() = None;
+
     Ok(result)
 }

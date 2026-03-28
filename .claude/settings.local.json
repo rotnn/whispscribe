@@ -29,7 +29,12 @@
       "Bash(python3 -c \"from PIL import Image; print\\(''PIL available''\\)\")",
       "Bash(python3 -c \"import cairosvg; print\\(''cairosvg available''\\)\")",
       "Bash(node scripts/generate-icons.mjs)",
-      "Bash(node -e \"const c=JSON.parse\\(require\\(''fs''\\).readFileSync\\(''src-tauri/tauri.conf.json'',''utf8''\\)\\); console.log\\(JSON.stringify\\(c.bundle.icon,null,2\\)\\)\")"
+      "Bash(node -e \"const c=JSON.parse\\(require\\(''fs''\\).readFileSync\\(''src-tauri/tauri.conf.json'',''utf8''\\)\\); console.log\\(JSON.stringify\\(c.bundle.icon,null,2\\)\\)\")",
+      "Bash(identify src-tauri/icons/icon.png)",
+      "Bash(sips -g pixelWidth -g pixelHeight src-tauri/icons/icon.png)",
+      "Bash(cp src-tauri/icons/icon.png /tmp/whispscribe-icon-source.png)",
+      "Bash(npx tauri:*)",
+      "Bash(python3 -c \":*)"
     ]
   }
 }

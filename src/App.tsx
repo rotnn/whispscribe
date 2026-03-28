@@ -190,11 +190,24 @@ export default function App() {
       // Auto-export immediately after transcription
       await handleExport(result);
     } catch (err) {
-      setStatus(`Error: ${err}`);
+      const msg = String(err);
+      if (msg.toLowerCase().includes('cancelled')) {
+        setStatus('Cancelled');
+      } else {
+        setStatus(`Error: ${err}`);
+      }
       setProgress(0);
     } finally {
       unlisten();
       setIsTranscribing(false);
+    }
+  }
+
+  async function handleCancel() {
+    try {
+      await invoke('cancel_transcription');
+    } catch {
+      // ignore — UI will update when transcribe rejects
     }
   }
 
@@ -266,6 +279,7 @@ export default function App() {
                 isTranscribing={isBusy}
                 exportResult={exportResult}
                 onExport={() => handleExport(transcript)}
+                onCancel={handleCancel}
               />
             </div>
           </div>
